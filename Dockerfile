@@ -5,7 +5,7 @@ FROM python:3.12-slim-bookworm
 WORKDIR /app
 
 # Install system dependencies for I2C access and sensors
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get dist-upgrade -y && apt-get install -y \
     i2c-tools \
     libi2c-dev \
     gcc \
@@ -37,7 +37,7 @@ LABEL maintainer="WeatherPi V2" \
 # Health check (basic - checks if process is running)
 # Note: This is a simple check; you may want to enhance it
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
-    CMD ps aux | grep "[p]ython readings.py" || exit 1
+    CMD pgrep -f "readings.py" || exit 1
 
 # Run the application with unbuffered output for proper logging
 CMD ["python", "-u", "readings.py"]
