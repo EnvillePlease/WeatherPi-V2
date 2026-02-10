@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  weatherpi:
+    build: .
+    container_name: weatherpi-readings
+    restart: unless-stopped
+    
+    # Required for I2C sensor access on Raspberry Pi
+    privileged: true
+    devices:
+      - /dev/i2c-1:/dev/i2c-1  # Raspberry Pi I2C device
+    
+    environment:
+      # MQTT Configuration
+      - 'MQTT_BROKERS=[{"py/object": "__main__.broker", "brokerfqdn": "mqtt.example.local", "brokerport": 1883, "brokerusername": "user", "brokerpassword": "pass"}]'
+      - MQTT_TOPIC=Weatherstation/
+      - MQTT_REFRESH=300
+      
+      # Database Configuration (optional)
+      - DB_USE_SQL=False
+      - DB_SERVER=
+      - DB_NAME=
+      - DB_USERNAME=
+      - DB_PASSWORD=
+      
+      # Sensor Calibration Offsets (optional)
+      - CAL_TEMPERATURE=0.0
+      - CAL_PRESSURE=0.0
+      - CAL_HUMIDITY=0.0
+      - CAL_LUX=0.0
+    
+    # Uncomment to use .env file instead of hardcoding env vars
+    # env_file:
+    #   - .env
+    
+    # Optional: Mount configuration directory
+    volumes:
+      - ./config:/app/config:ro
+    
+    # Optional: Mount logs directory
+    # volumes:
+    #   - ./logs:/app/logs
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Add MySQL service if using database storage
+# services:
+#   mysql:
+#     image: mysql:8.0
+#     environment:
+#       MYSQL_ROOT_PASSWORD: rootpass
+#       MYSQL_DATABASE: weatherpi
+#       MYSQL_USER: weatherpi_user
+#       MYSQL_PASSWORD: weatherpi_pass
+#     volumes:
+#       - mysql_data:/var/lib/mysql
+#     ports:
+#       - "3306:3306"
+#
+# volumes:
+#   mysql_data:

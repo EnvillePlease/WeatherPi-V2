@@ -1,0 +1,22 @@
+[broker]
+brokers = [{"py/object": "__main__.broker", "brokerfqdn": "<server name>", "brokerport": 1883, "brokerusername": "<username>", "brokerpassword": "<password>"}]
+# For TLS use port 8883 and ensure the broker supports TLS. Example:
+# brokers = [{"py/object": "__main__.broker", "brokerfqdn": "mqtt.example.local", "brokerport": 8883, "brokerusername": "user", "brokerpassword": "pass"}]
+topic = Weatherstation/
+refresh = 300
+
+[db]
+usesql = False
+server = <SQL Server ip address>
+database = <SQL Server database name>
+username = <SQL Server username>
+password = <SQL Server password>
+
+[calibration]
+# Per-sensor calibration offsets. These are added to the raw sensor readings before
+# any rounding, derived calculations (dew point, corrected humidity), storage or
+# publishing. Default is 0 (no calibration).
+temperature = 0.0
+pressure = 0.0
+humidity = 0.0
+lux = 0.0

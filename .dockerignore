@@ -1,0 +1,15 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.vscode
+.env
+readings.ini
+*.db
+*.log
+node_modules
+.venv
+venv

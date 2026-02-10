@@ -1,0 +1,18 @@
+smbus2
+paho-mqtt
+mysql-connector-python
+jsonpickle
+bh1745
+veml6075
+pimoroni-bme280
+smbus
+datetime
+ping3
+configparser
+nuitka
+# Test dependencies
+pytest
+# Note: `bh1745` is hardware-specific and may not be available on PyPI.
+# If you have a vendor package name for the BH1745 sensor, add it here.
+# Otherwise create a small stub module for local development or mock it in tests.
+# bh1745
