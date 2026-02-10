@@ -10,8 +10,7 @@ RUN apt-get update && apt-get dist-upgrade -y && apt-get install -y \
     libi2c-dev \
     gcc \
     make \
-    procps \
-    && rm -rf /var/lib/apt/lists/*
+    procps
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
@@ -33,7 +32,7 @@ COPY CNSoft.WeatherPi.Readings.V2/readings.ini.sample /app/readings.ini.sample
 # Labels for metadata
 LABEL maintainer="WeatherPi V2" \
       description="WeatherPi Sensor Readings Publisher for MQTT and MySQL" \
-      version="2.0"
+      version="2.0.1"
 
 # Health check (basic - checks if process is running)
 # Note: This is a simple check; you may want to enhance it
