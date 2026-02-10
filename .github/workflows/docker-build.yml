@@ -32,7 +32,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags:
+          tags: |
             ghcr.io/envilleplease/weatherpi-v2:latest
             ghcr.io/envilleplease/weatherpi-v2:latest-${{ github.sha }}
             ghcr.io/envilleplease/weatherpi-v2:v2.0.0
