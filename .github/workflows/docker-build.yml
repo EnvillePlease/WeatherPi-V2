@@ -35,7 +35,7 @@ jobs:
           tags: |
             ghcr.io/envilleplease/weatherpi-v2:latest
             ghcr.io/envilleplease/weatherpi-v2:latest-${{ github.sha }}
-            ghcr.io/envilleplease/weatherpi-v2:v2.0.0
+            ghcr.io/envilleplease/weatherpi-v2:v2.0.1
           platforms: linux/amd64,linux/arm/v7,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
