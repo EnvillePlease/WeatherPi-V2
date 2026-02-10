@@ -1,5 +1,5 @@
-# Use Python 3.12 on Raspberry Pi OS or Debian
-FROM python:3.12-slim
+# Use Python 3.12 on Raspberry Pi OS or Debian 12 (Bookworm)
+FROM python:3.12-slim-bookworm
 
 # Set working directory
 WORKDIR /app
@@ -9,10 +9,12 @@ RUN apt-get update && apt-get install -y \
     i2c-tools \
     libi2c-dev \
     gcc \
+    make \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
+RUN pip install --upgrade pip setuptools
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
@@ -28,7 +30,7 @@ COPY CNSoft.WeatherPi.Readings.V2/ .
 COPY CNSoft.WeatherPi.Readings.V2/readings.ini.sample /app/readings.ini.sample
 
 # Labels for metadata
-LABEL maintainer="WeatherPi Project" \
+LABEL maintainer="WeatherPi V2" \
       description="WeatherPi Sensor Readings Publisher for MQTT and MySQL" \
       version="2.0"
 
@@ -37,5 +39,5 @@ LABEL maintainer="WeatherPi Project" \
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
     CMD ps aux | grep "[p]ython readings.py" || exit 1
 
-# Run the application
-CMD ["python", "readings.py"]
+# Run the application with unbuffered output for proper logging
+CMD ["python", "-u", "readings.py"]

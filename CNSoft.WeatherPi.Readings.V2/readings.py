@@ -1,25 +1,4 @@
 #!/usr/bin/env python3
-from smbus2 import SMBus
-from bme280 import BME280
-from bh1745 import BH1745
-import mysql.connector
-import time
-import configparser
-import argparse
-import os
-import sys
-import paho.mqtt.client as mqtt_client
-import random
-import socket
-import json
-import jsonpickle
-import ssl
-import logging
-import math
-from typing import Optional, List, Any
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
-
 """weatherpi readings publisher
 
 This module reads sensors (BME280 for temperature/pressure/humidity
@@ -34,6 +13,31 @@ Configuration can be provided via:
 Usage: `python readings.py [-c /path/to/readings.ini]`.
 Environment variables take precedence over config file settings.
 """
+
+from smbus2 import SMBus
+from bme280 import BME280
+from bh1745 import BH1745
+import mysql.connector
+import time
+import configparser
+import argparse
+import os
+import paho.mqtt.client as mqtt_client
+import random
+import socket
+import json
+import jsonpickle
+import ssl
+import logging
+import math
+import signal
+import sys
+from typing import Optional, List, Any
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+
+# Global shutdown flag for graceful termination
+shutdown_requested = False
 
 # Custom object to hold broker details
 class broker:
@@ -56,13 +60,39 @@ class broker:
         self.brokerusername = brokerusername
         self.brokerpassword = brokerpassword
 
-# Initialise the BME280 (temperature, pressure, humidity)
-bus = SMBus(1)
-bme280 = BME280(i2c_dev=bus)
+SIMULATE_SENSORS = os.environ.get('SIMULATE_SENSORS', '').lower() in ('1', 'true', 'yes')
 
-# Initialise the BH1745 (colour and lux sensor)
-bh1745 = BH1745()
-bh1745.setup()
+if SIMULATE_SENSORS:
+    logging.warning("SIMULATE_SENSORS enabled; using fake sensor readings")
+
+    class FakeBME280:
+        def get_temperature(self) -> float:
+            return 21.5
+
+        def get_pressure(self) -> float:
+            return 1013.25
+
+        def get_humidity(self) -> float:
+            return 45.0
+
+    class FakeBH1745:
+        def setup(self) -> None:
+            return None
+
+        def get_rgbc_raw(self):
+            return 120, 110, 100, 330
+
+    bme280 = FakeBME280()
+    bh1745 = FakeBH1745()
+    bh1745.setup()
+else:
+    # Initialise the BME280 (temperature, pressure, humidity)
+    bus = SMBus(1)
+    bme280 = BME280(i2c_dev=bus)
+
+    # Initialise the BH1745 (colour and lux sensor)
+    bh1745 = BH1745()
+    bh1745.setup()
 
 # Parse command line for optional config file
 parser = argparse.ArgumentParser(description='Publish sensor readings to MQTT/SQL')
@@ -95,40 +125,53 @@ def load_config():
     brokers_data = os.environ.get('MQTT_BROKERS')
     if brokers_data:
         try:
-            brokers = jsonpickle.decode(brokers_data)
+            brokers_config = jsonpickle.decode(brokers_data)
             logging.info("MQTT brokers loaded from env: MQTT_BROKERS")
-        except Exception as e:
+        except (TypeError, ValueError) as e:
             logging.error("Failed to parse MQTT_BROKERS env var: %s", e)
             if config_file_exists:
-                brokers = jsonpickle.decode(config.get('broker', 'brokers'))
+                brokers_config = jsonpickle.decode(config.get('broker', 'brokers'))
             else:
-                raise ValueError("MQTT_BROKERS env var is invalid and no config file found")
+                raise ValueError("MQTT_BROKERS env var is invalid and no config file found") from e
     elif config_file_exists:
-        brokers = jsonpickle.decode(config.get('broker', 'brokers'))
+        brokers_config = jsonpickle.decode(config.get('broker', 'brokers'))
     else:
         raise ValueError("MQTT_BROKERS env var not set and no config file found")
     
     # Load MQTT topic
-    topic = os.environ.get('MQTT_TOPIC', config.get('broker', 'topic', fallback='Weatherstation/'))
+    topic_config = os.environ.get('MQTT_TOPIC', config.get('broker', 'topic', fallback='Weatherstation/'))
     
     # Load refresh interval
     refresh_str = os.environ.get('MQTT_REFRESH', config.get('broker', 'refresh', fallback='300'))
-    refresh_interval = int(refresh_str)
+    refresh_interval_config = int(refresh_str)
     
     # Load database configuration
-    usesql = os.environ.get('DB_USE_SQL', config.get('db', 'usesql', fallback='False')).lower() in ('true', '1', 'yes')
-    dbserver = os.environ.get('DB_SERVER', config.get('db', 'server', fallback=''))
-    dbname = os.environ.get('DB_NAME', config.get('db', 'database', fallback=''))
-    dbusername = os.environ.get('DB_USERNAME', config.get('db', 'username', fallback=''))
-    dbpassword = os.environ.get('DB_PASSWORD', config.get('db', 'password', fallback=''))
+    usesql_config = os.environ.get('DB_USE_SQL', config.get('db', 'usesql', fallback='False')).lower() in ('true', '1', 'yes')
+    dbserver_config = os.environ.get('DB_SERVER', config.get('db', 'server', fallback=''))
+    dbname_config = os.environ.get('DB_NAME', config.get('db', 'database', fallback=''))
+    dbusername_config = os.environ.get('DB_USERNAME', config.get('db', 'username', fallback=''))
+    dbpassword_config = os.environ.get('DB_PASSWORD', config.get('db', 'password', fallback=''))
     
     # Load calibration offsets
-    cal_temp = float(os.environ.get('CAL_TEMPERATURE', config.get('calibration', 'temperature', fallback='0.0')))
-    cal_pressure = float(os.environ.get('CAL_PRESSURE', config.get('calibration', 'pressure', fallback='0.0')))
-    cal_humidity = float(os.environ.get('CAL_HUMIDITY', config.get('calibration', 'humidity', fallback='0.0')))
-    cal_lux = float(os.environ.get('CAL_LUX', config.get('calibration', 'lux', fallback='0.0')))
+    cal_temp_config = float(os.environ.get('CAL_TEMPERATURE', config.get('calibration', 'temperature', fallback='0.0')))
+    cal_pressure_config = float(os.environ.get('CAL_PRESSURE', config.get('calibration', 'pressure', fallback='0.0')))
+    cal_humidity_config = float(os.environ.get('CAL_HUMIDITY', config.get('calibration', 'humidity', fallback='0.0')))
+    cal_lux_config = float(os.environ.get('CAL_LUX', config.get('calibration', 'lux', fallback='0.0')))
     
-    return brokers, topic, refresh_interval, usesql, dbserver, dbname, dbusername, dbpassword, cal_temp, cal_pressure, cal_humidity, cal_lux
+    return (
+        brokers_config,
+        topic_config,
+        refresh_interval_config,
+        usesql_config,
+        dbserver_config,
+        dbname_config,
+        dbusername_config,
+        dbpassword_config,
+        cal_temp_config,
+        cal_pressure_config,
+        cal_humidity_config,
+        cal_lux_config,
+    )
 
 # Load configuration
 brokers, topic, refresh_interval, usesql, dbserver, dbname, dbusername, dbpassword, cal_temp, cal_pressure, cal_humidity, cal_lux = load_config()
@@ -146,7 +189,7 @@ client_id: str = f'{socket.gethostname()}_s-{random.randint(0, 1000)}'
 temperature: float = bme280.get_temperature()
 pressure: float = bme280.get_pressure()
 humidity: float = bme280.get_humidity()
-r, g, b, c = bh1745.get_rgbc_raw()
+_r_raw, _g_raw, _b_raw, _c_raw = bh1745.get_rgbc_raw()
 time.sleep(1)
 
 def connect_mqtt(brokerep: broker) -> mqtt_client.Client:
@@ -157,7 +200,7 @@ def connect_mqtt(brokerep: broker) -> mqtt_client.Client:
     (network loop started) or a client with the loop started even if
     the initial connect failed.
     """
-    def on_connect(client, userdata, flags, rc):
+    def on_connect(_client, _userdata, _flags, rc):
         if rc == 0:
             logging.info("Connected to MQTT Broker %s", brokerep.brokerfqdn)
         else:
@@ -172,7 +215,7 @@ def connect_mqtt(brokerep: broker) -> mqtt_client.Client:
     if cap is not None:
         try:
             client = mqtt_client.Client(cap.VERSION1, client_id_instance)
-        except Exception:
+        except (TypeError, ValueError):
             client = mqtt_client.Client(client_id=client_id_instance, protocol=mqtt_client.MQTTv311)
     else:
         client = mqtt_client.Client(client_id=client_id_instance, protocol=mqtt_client.MQTTv311)
@@ -190,12 +233,12 @@ def connect_mqtt(brokerep: broker) -> mqtt_client.Client:
         client.loop_start()
         time.sleep(1)
         logging.info("MQTT client loop started for %s", brokerep.brokerfqdn)
-    except Exception as e:
+    except (OSError, RuntimeError) as e:
         logging.error("Failed to connect/start MQTT client for %s: %s", brokerep.brokerfqdn, e)
         # Start loop anyway to allow client to attempt background reconnects if possible
         try:
             client.loop_start()
-        except Exception:
+        except RuntimeError:
             pass
     return client
 
@@ -219,7 +262,7 @@ def connect_db() -> Optional[Any]:
         logging.error("Database connection failed: %s", e)
         return None
 
-def publish_sensor(clients: List[mqtt_client.Client], conn: Optional[mysql.connector.connection.MySQLConnection]) -> None:
+def publish_sensor(mqtt_clients: List[mqtt_client.Client], conn: Optional[mysql.connector.connection.MySQLConnection]) -> None:
     """Main sensor read loop.
 
     This function runs an infinite loop that reads sensor values,
@@ -234,41 +277,41 @@ def publish_sensor(clients: List[mqtt_client.Client], conn: Optional[mysql.conne
         if conn is not None:
             try:
                 cursor = conn.cursor()
-            except Exception as e:
+            except mysql.connector.Error as e:
                 logging.error("Failed to create DB cursor at startup: %s", e)
                 conn = None
         else:
             logging.warning("usesql=True but no DB connection provided at startup")
 
-    while True:
+    while not shutdown_requested:
         try:
             # Obtain readings from the sensors
-            temperature = bme280.get_temperature()
-            pressure = bme280.get_pressure()
-            humidity = bme280.get_humidity()
-            _, _, _, c = bh1745.get_rgbc_raw()
+            temperature_reading = bme280.get_temperature()
+            pressure_reading = bme280.get_pressure()
+            humidity_reading = bme280.get_humidity()
+            _, _, _, clear_channel = bh1745.get_rgbc_raw()
 
             # Apply per-sensor calibration offsets (configurable in readings.ini)
             try:
-                temperature = temperature + cal_temp
-            except Exception:
+                temperature_reading = temperature_reading + cal_temp
+            except TypeError:
                 logging.exception("Failed to apply temperature calibration")
             try:
-                pressure = pressure + cal_pressure
-            except Exception:
+                pressure_reading = pressure_reading + cal_pressure
+            except TypeError:
                 logging.exception("Failed to apply pressure calibration")
             try:
-                humidity = humidity + cal_humidity
-            except Exception:
+                humidity_reading = humidity_reading + cal_humidity
+            except TypeError:
                 logging.exception("Failed to apply humidity calibration")
             try:
                 # Apply lux calibration to the raw c channel before conversion
-                c = c + cal_lux
-            except Exception:
+                clear_channel = clear_channel + cal_lux
+            except TypeError:
                 logging.exception("Failed to apply lux calibration")
 
             # Calculate lux from colour sensor data
-            lx_tmp = c / 1.638375
+            lx_tmp = clear_channel / 1.638375
             lx = min(max(round(lx_tmp, -2), 0), 40000)
             ambient_lux = min(lx, 10000)
 
@@ -279,24 +322,21 @@ def publish_sensor(clients: List[mqtt_client.Client], conn: Optional[mysql.conne
                 a: float = 17.27
                 b: float = 237.7
                 # Protect against invalid humidity values (<=0)
-                rh_fraction: float = max(min(humidity / 100.0, 1.0), 1e-6)
-                gamma = (a * temperature) / (b + temperature) + math.log(rh_fraction)
+                rh_fraction: float = max(min(humidity_reading / 100.0, 1.0), 1e-6)
+                gamma = (a * temperature_reading) / (b + temperature_reading) + math.log(rh_fraction)
                 dewpoint = (b * gamma) / (a - gamma)
-            except Exception:
+            except (OverflowError, ValueError, ZeroDivisionError):
                 # Fallback to the original simple approximation if something goes wrong
                 logging.exception("Magnus dew point calculation failed; using fallback")
-                dewpoint = temperature - ((100 - humidity) / 5)
-
-            corrected_humidity = 100 - (5 * (temperature - dewpoint))
+                dewpoint = temperature_reading - ((100 - humidity_reading) / 5)
 
             # Keep numeric values and round when publishing/storing
-            temperature_r: float = round(temperature, 1)
-            pressure_r: float = round(pressure, 1)
-            humidity_r: float = round(humidity, 1)
+            temperature_r: float = round(temperature_reading, 1)
+            pressure_r: float = round(pressure_reading, 1)
+            humidity_r: float = round(humidity_reading, 1)
             lx_r: float = round(lx, 1)
             ambient_lux_r: float = round(ambient_lux, 1)
             dewpoint_r: float = round(dewpoint, 1)
-            corrected_humidity_r: float = round(corrected_humidity, 1)
 
             # Check for a bad reading from the sensors (sensor's known invalid startup values)
             if not (temperature_r == 22.0 and humidity_r == 82.3 and pressure_r == 684.3):
@@ -309,7 +349,7 @@ def publish_sensor(clients: List[mqtt_client.Client], conn: Optional[mysql.conne
                         if conn is not None:
                             try:
                                 cursor = conn.cursor()
-                            except Exception as e:
+                            except mysql.connector.Error as e:
                                 logging.error("Failed to create DB cursor after reconnect: %s", e)
                                 cursor = None
 
@@ -324,7 +364,7 @@ def publish_sensor(clients: List[mqtt_client.Client], conn: Optional[mysql.conne
                             logging.error("Database insert failed: %s", e)
                             try:
                                 conn.close()
-                            except Exception:
+                            except mysql.connector.Error:
                                 pass
                             conn = None
                             cursor = None
@@ -340,7 +380,7 @@ def publish_sensor(clients: List[mqtt_client.Client], conn: Optional[mysql.conne
                 })
 
                 # Publish the readings to each MQTT server
-                for client in clients:
+                for client in mqtt_clients:
                     try:
                         result = client.publish(topic + "WeatherData", mqtt_payload)
                         status = result[0]
@@ -348,21 +388,33 @@ def publish_sensor(clients: List[mqtt_client.Client], conn: Optional[mysql.conne
                             logging.debug("Published message to %s", topic)
                         else:
                             logging.warning("Client failed to send message to topic %s (status=%s)", topic, status)
-                    except Exception as e:
+                    except (OSError, RuntimeError) as e:
                         logging.exception("Client failed to send message to topic %s: %s", topic, e)
                         # Attempt to reconnect this client
                         try:
                             client.reconnect()
-                        except Exception:
+                        except (OSError, RuntimeError):
                             pass
             else:
                 logging.warning("Bad sensor reading detected: temp=%s hum=%s pres=%s", temperature_r, humidity_r, pressure_r)
 
-        except Exception:
+        except (OSError, RuntimeError, ValueError):
             logging.exception("Unexpected error in sensor loop; continuing")
 
         # Wait for the configured interval before repeating
         time.sleep(refresh_interval)
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals for graceful termination.
+    
+    Args:
+        signum: Signal number received
+        frame: Current stack frame
+    """
+    global shutdown_requested
+    signal_name = signal.Signals(signum).name
+    logging.info("Received %s signal, initiating graceful shutdown...", signal_name)
+    shutdown_requested = True
 
 def run():
     """Application entry point.
@@ -371,6 +423,12 @@ def run():
     MQTT network loops, then enters the sensor publishing loop. Ensures
     graceful shutdown of clients and DB on exit.
     """
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    logging.info("Starting WeatherPi readings service...")
+    
     for brokerep in brokers:
         client = connect_mqtt(brokerep)
         clients.append(client)
@@ -386,16 +444,19 @@ def run():
         publish_sensor(clients, conn)
     finally:
         # Graceful shutdown: stop MQTT loops and close DB connection
+        logging.info("Shutting down WeatherPi readings service...")
         for client in clients:
             try:
                 client.loop_stop()
-            except Exception:
+                client.disconnect()
+            except (OSError, RuntimeError):
                 pass
         if conn is not None:
             try:
                 conn.close()
-            except Exception:
+            except mysql.connector.Error:
                 pass
+        logging.info("WeatherPi readings service stopped cleanly")
 
 if __name__ == '__main__':
     run()
