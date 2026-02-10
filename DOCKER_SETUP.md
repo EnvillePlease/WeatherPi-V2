@@ -34,7 +34,10 @@ docker-compose up -d
 # View logs
 docker-compose logs -f weatherpi
 
-# Stop the container
+# Stop the container gracefully (30 second timeout for clean shutdown)
+docker-compose stop
+
+# Stop and remove the container
 docker-compose down
 ```
 
@@ -193,6 +196,29 @@ docker-compose logs weatherpi
 docker-compose logs -f weatherpi
 ```
 
+## Graceful Shutdown
+
+The application implements proper signal handling for clean shutdown. When stopping the container:
+
+```bash
+# Docker Compose (30 second grace period)
+docker-compose stop weatherpi
+
+# Docker (default 10 second timeout)
+docker stop weatherpi
+
+# Docker with explicit timeout
+docker stop -t 30 weatherpi
+```
+
+The `docker-compose.yml` is configured with `stop_grace_period: 30s` to allow:
+- Completion of the current sensor reading cycle
+- Clean disconnection from MQTT brokers
+- Proper closing of database connections
+- Logging of shutdown progress
+
+**Important:** Use `docker-compose stop` or `docker stop`, not `docker-compose kill` or `docker kill`, to ensure graceful shutdown.
+
 ## Production Recommendations
 
 1. **Use a reverse proxy** for MQTT if exposing remotely
@@ -201,3 +227,5 @@ docker-compose logs -f weatherpi
 4. **Use `restart: unless-stopped`** for automatic recovery
 5. **Monitor container health** with healthchecks (add to docker-compose.yml if needed)
 6. **Regularly update** the base Python image and dependencies
+7. **Always use graceful shutdown** (`docker-compose stop`, not `kill`) to ensure clean connection termination
+8. **Monitor shutdown logs** to verify clean disconnection from MQTT and database resources

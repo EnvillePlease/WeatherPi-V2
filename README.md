@@ -12,6 +12,7 @@ A Raspberry Pi-based weather station that reads environmental sensors via I2C an
 ✅ **Flexible Configuration**: Environment variables or config file (`readings.ini`)  
 ✅ **Backward Compatible**: Supports existing config file deployments  
 ✅ **Hardware Healthcheck**: Built-in I2C sensor verification  
+✅ **Graceful Shutdown**: Proper signal handling for clean container stops  
 
 ## Quick Start
 
@@ -32,7 +33,10 @@ docker-compose up -d
 # View logs
 docker-compose logs -f weatherpi
 
-# Stop the container
+# Stop the container gracefully (waits up to 30s for clean shutdown)
+docker-compose stop
+
+# Stop and remove the container
 docker-compose down
 ```
 
@@ -249,6 +253,28 @@ docker-compose logs weatherpi
 docker-compose logs -f weatherpi
 ```
 
+## Stopping the Service
+
+The application handles shutdown signals gracefully, ensuring proper cleanup of MQTT connections and database resources.
+
+**Docker Compose:**
+```bash
+docker-compose stop     # Graceful stop (30s timeout)
+docker-compose down     # Stop and remove container
+```
+
+**Docker:**
+```bash
+docker stop weatherpi   # Graceful stop (30s timeout)
+docker stop -t 30 weatherpi  # Explicit 30s timeout
+```
+
+During shutdown, the application:
+- Completes the current sensor reading cycle
+- Disconnects from all MQTT brokers cleanly
+- Closes database connections properly
+- Logs shutdown progress for monitoring
+
 ## Migration from Config File to Environment Variables
 
 To migrate from `readings.ini` to environment variables:
@@ -298,6 +324,7 @@ docker buildx build --platform linux/amd64 -t weatherpi:latest .
 6. **Regular backups** of database and `.env` configuration
 7. **Update regularly** to get latest security patches and features
 8. **Use reverse proxy** for MQTT if exposing remotely
+9. **Allow graceful shutdown** with `docker-compose stop` (not `docker-compose kill`) to ensure clean connection termination
 
 ## Project Structure
 
