@@ -10,6 +10,7 @@ RUN apt-get update && apt-get dist-upgrade -y && apt-get install -y \
     libi2c-dev \
     gcc \
     make \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
