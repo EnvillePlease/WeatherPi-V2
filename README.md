@@ -9,6 +9,7 @@ A Raspberry Pi-based weather station that reads environmental sensors via I2C an
 ✅ **Database Logging**: Optional MySQL storage for historical data  
 ✅ **Sensor Calibration**: Per-sensor calibration offsets  
 ✅ **Docker Ready**: Fully containerized with Docker and Docker Compose support  
+✅ **Standalone Service**: Automated setup script for systemd service deployment  
 ✅ **Flexible Configuration**: Environment variables or config file (`readings.ini`)  
 ✅ **Backward Compatible**: Supports existing config file deployments  
 ✅ **Hardware Healthcheck**: Built-in I2C sensor verification  
@@ -57,10 +58,54 @@ docker run -d \
   weatherpi:latest
 ```
 
-### Option 3: Traditional Python (Non-Docker)
+### Option 3: Standalone Python Service (Non-Docker)
+
+For running as a native systemd service on Debian 11/12 or Raspberry Pi OS.
+
+#### Automated Setup (Recommended)
+
+The `setup_env.sh` script automates environment creation and service configuration:
 
 ```bash
-# Install dependencies
+# Run the setup script (automatically installs Python 3.11/3.12 if needed)
+./scripts/setup_env.sh
+
+# Copy and edit configuration
+cp CNSoft.WeatherPi.Readings.V2/readings.ini.sample CNSoft.WeatherPi.Readings.V2/readings.ini
+# Edit readings.ini with your settings
+
+# Run the application
+source .venv/bin/activate
+python CNSoft.WeatherPi.Readings.V2/readings.py -c CNSoft.WeatherPi.Readings.V2/readings.ini
+```
+
+**What the setup script does:**
+- ✅ Detects or installs Python 3.11/3.12 (via apt or compiles from source)
+- ✅ Creates a virtual environment (`.venv` by default)
+- ✅ Installs all dependencies from `requirements.txt`
+- ✅ Creates a system user `weather` for running the service
+- ✅ Generates a systemd service unit file (`/etc/systemd/system/weather.service`)
+- ✅ Service is created disabled by default for manual configuration
+
+**Optional: Run as systemd service**
+
+After configuring `readings.ini`, enable and start the service:
+
+```bash
+# Enable and start the service
+sudo systemctl enable --now weather.service
+
+# Check service status
+sudo systemctl status weather.service
+
+# View logs
+sudo journalctl -u weather.service -f
+```
+
+#### Manual Setup
+
+```bash
+# Install dependencies manually
 pip install -r requirements.txt
 
 # Copy and edit configuration
@@ -253,6 +298,13 @@ docker-compose logs weatherpi
 docker-compose logs -f weatherpi
 ```
 
+**Standalone Service:**
+```bash
+sudo journalctl -u weather.service           # View all logs
+sudo journalctl -u weather.service -f        # Follow logs
+sudo journalctl -u weather.service -n 50     # Last 50 lines
+```
+
 ## Stopping the Service
 
 The application handles shutdown signals gracefully, ensuring proper cleanup of MQTT connections and database resources.
@@ -267,6 +319,13 @@ docker-compose down     # Stop and remove container
 ```bash
 docker stop weatherpi   # Graceful stop (30s timeout)
 docker stop -t 30 weatherpi  # Explicit 30s timeout
+```
+
+**Standalone Service:**
+```bash
+sudo systemctl stop weather.service      # Graceful stop
+sudo systemctl restart weather.service   # Restart service
+sudo systemctl disable weather.service   # Disable autostart
 ```
 
 During shutdown, the application:
@@ -334,6 +393,8 @@ WeatherPi-V2/
 │   ├── readings.py              # Main application
 │   ├── readings.ini.sample      # Sample config file
 │   └── CNSoft.WeatherPi.Readings.pyproj
+├── scripts/
+│   └── setup_env.sh             # Automated environment setup for standalone deployment
 ├── Dockerfile                   # Container build instructions
 ├── docker-compose.yml           # Container orchestration
 ├── requirements.txt             # Python dependencies

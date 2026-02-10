@@ -1,0 +1,41 @@
+[Unit]
+Description=CNSoft Weather Monitoring Station
+After=network.target
+
+[Service]
+WorkingDirectory=/path/to/weatherpi/CNSoft.WeatherPi.Reading
+
+PrivateUsers=true
+# Users Database is not available from within the unit, only root and minecraft is available, everybody else is nobody
+
+User=weather
+Group=weather
+
+ProtectSystem=full
+# Read only mapping of /usr /boot and /etc
+
+ProtectHome=true
+# /home, /root and /run/user seem to be empty from within the unit. It is recommended to enable this setting for all long-running services (in particular netwo$
+
+ProtectKernelTunables=true
+# /proc/sys, /sys, /proc/sysrq-trigger, /proc/latency_stats, /proc/acpi, /proc/timer_stats, /proc/fs and /proc/irq will be read-only within the unit. It is rec$
+# Implies MountFlags=slave
+
+ProtectKernelModules=true
+# Block module system calls, also /usr/lib/modules. It is recommended to turn this on for most services that do not need special file systems or extra kernel m$
+# Implies NoNewPrivileges=yes
+
+ProtectControlGroups=true
+# It is hence recommended to turn this on for most services.
+# Implies MountAPIVFS=yes
+
+# Uncomment this to fix screen on RHEL 8
+#ExecStartPre=+/bin/sh -c 'chmod 777 /run/screen'
+
+ExecStart=/path/to/weatherpi/.venv/bin/python /path/to/weatherpi/CNSoft.WeatherPi.Readings/readings.py
+
+Restart=always
+RestartSec=20s
+
+[Install]
+WantedBy=multi-user.target
