@@ -61,6 +61,9 @@ Configuration is handled through **environment variables** instead of the `readi
 | `CAL_PRESSURE` | `0.0` | Pressure calibration offset (hPa) |
 | `CAL_HUMIDITY` | `0.0` | Humidity calibration offset (%) |
 | `CAL_LUX` | `0.0` | Light intensity calibration offset (lux) |
+| `SIMULATE_SENSORS` | `False` | Use fake sensor readings for testing instead of the real BME280/BH1745 hardware |
+
+When `SIMULATE_SENSORS` is enabled, the app skips hardware initialization and uses fixed demo values so you can test the container or application flow without I2C sensors attached.
 
 ### MQTT Broker Configuration
 

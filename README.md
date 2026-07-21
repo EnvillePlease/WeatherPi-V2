@@ -143,6 +143,9 @@ Configuration via environment variables is ideal for Docker deployments. See the
 | `CAL_PRESSURE` | `0.0` | Pressure offset (hPa) |
 | `CAL_HUMIDITY` | `0.0` | Humidity offset (%) |
 | `CAL_LUX` | `0.0` | Light offset (lux) |
+| `SIMULATE_SENSORS` | `False` | Use fixed demo sensor values instead of the real hardware |
+
+Set `SIMULATE_SENSORS=true` when you want to test the app or container without I2C sensors attached; the service will use simulated readings instead of talking to the BME280/BH1745 boards.
 
 #### MQTT Broker Examples
 

@@ -115,7 +115,10 @@ CAL_TEMPERATURE=0.5
 CAL_PRESSURE=-2.0
 CAL_HUMIDITY=1.0
 CAL_LUX=100
+SIMULATE_SENSORS=True
 ```
+
+Set `SIMULATE_SENSORS=True` when you want to test the container without physical I2C sensors attached; the app will use fixed demo values instead of the real BME280/BH1745 hardware.
 
 ## Hardware Requirements
 
