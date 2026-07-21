@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-WeatherPI Version 2.0.4 - Sensor Readings Publisher
+WeatherPI Version 2.0.5 - Sensor Readings Publisher
 Author: Clark Nelson
 Company: CNSoft
 Copyright (c) 2026 CNSoft. All rights reserved.
@@ -64,39 +64,11 @@ class broker:
         self.brokerusername = brokerusername
         self.brokerpassword = brokerpassword
 
-SIMULATE_SENSORS = os.environ.get('SIMULATE_SENSORS', '').lower() in ('1', 'true', 'yes')
-
-if SIMULATE_SENSORS:
-    logging.warning("SIMULATE_SENSORS enabled; using fake sensor readings")
-
-    class FakeBME280:
-        def get_temperature(self) -> float:
-            return 21.5
-
-        def get_pressure(self) -> float:
-            return 1013.25
-
-        def get_humidity(self) -> float:
-            return 45.0
-
-    class FakeBH1745:
-        def setup(self) -> None:
-            return None
-
-        def get_rgbc_raw(self):
-            return 120, 110, 100, 330
-
-    bme280 = FakeBME280()
-    bh1745 = FakeBH1745()
-    bh1745.setup()
-else:
-    # Initialise the BME280 (temperature, pressure, humidity)
-    bus = SMBus(1)
-    bme280 = BME280(i2c_dev=bus)
-
-    # Initialise the BH1745 (colour and lux sensor)
-    bh1745 = BH1745()
-    bh1745.setup()
+def parse_bool(value: Optional[str], default: bool = False) -> bool:
+    """Parse a string value into a boolean while tolerating common truthy values."""
+    if value is None:
+        return default
+    return str(value).strip().lower() in ('1', 'true', 'yes')
 
 # Parse command line for optional config file
 parser = argparse.ArgumentParser(description='Publish sensor readings to MQTT/SQL')
@@ -161,6 +133,14 @@ def load_config():
     cal_pressure_config = float(os.environ.get('CAL_PRESSURE', config.get('calibration', 'pressure', fallback='0.0')))
     cal_humidity_config = float(os.environ.get('CAL_HUMIDITY', config.get('calibration', 'humidity', fallback='0.0')))
     cal_lux_config = float(os.environ.get('CAL_LUX', config.get('calibration', 'lux', fallback='0.0')))
+
+    # Load simulation mode from environment first, then the config file
+    simulate_sensors_config = False
+    env_simulate = os.environ.get('SIMULATE_SENSORS')
+    if env_simulate is not None:
+        simulate_sensors_config = parse_bool(env_simulate)
+    elif config_file_exists and config.has_option('developer', 'simulate_sensors'):
+        simulate_sensors_config = parse_bool(config.get('developer', 'simulate_sensors'))
     
     return (
         brokers_config,
@@ -175,11 +155,44 @@ def load_config():
         cal_pressure_config,
         cal_humidity_config,
         cal_lux_config,
+        simulate_sensors_config,
     )
 
 # Load configuration
-brokers, topic, refresh_interval, usesql, dbserver, dbname, dbusername, dbpassword, cal_temp, cal_pressure, cal_humidity, cal_lux = load_config()
+brokers, topic, refresh_interval, usesql, dbserver, dbname, dbusername, dbpassword, cal_temp, cal_pressure, cal_humidity, cal_lux, SIMULATE_SENSORS = load_config()
 clients: List[mqtt_client.Client] = []
+
+if SIMULATE_SENSORS:
+    logging.warning("SIMULATE_SENSORS enabled; using fake sensor readings")
+
+    class FakeBME280:
+        def get_temperature(self) -> float:
+            return 21.5
+
+        def get_pressure(self) -> float:
+            return 1013.25
+
+        def get_humidity(self) -> float:
+            return 45.0
+
+    class FakeBH1745:
+        def setup(self) -> None:
+            return None
+
+        def get_rgbc_raw(self):
+            return 120, 110, 100, 330
+
+    bme280 = FakeBME280()
+    bh1745 = FakeBH1745()
+    bh1745.setup()
+else:
+    # Initialise the BME280 (temperature, pressure, humidity)
+    bus = SMBus(1)
+    bme280 = BME280(i2c_dev=bus)
+
+    # Initialise the BH1745 (colour and lux sensor)
+    bh1745 = BH1745()
+    bh1745.setup()
 
 # Generate a unique client ID
 client_id: str = f'{socket.gethostname()}_s-{random.randint(0, 1000)}'
