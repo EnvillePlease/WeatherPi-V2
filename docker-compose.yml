@@ -31,6 +31,9 @@ services:
       - CAL_PRESSURE=0.0
       - CAL_HUMIDITY=0.0
       - CAL_LUX=0.0
+
+      # Developer Mode (optional)
+      - SIMULATE_SENSORS=False  # Set to True to simulate sensor readings for testing without I2C hardware
     
     # Uncomment to use .env file instead of hardcoding env vars
     # env_file:
