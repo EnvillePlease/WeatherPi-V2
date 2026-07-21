@@ -72,6 +72,14 @@ All calibration offsets are added to raw sensor readings.
 - Example: `100` or `-50.0`
 - Default: `0.0`
 
+## Simulation / Testing (Optional)
+
+**SIMULATE_SENSORS** (Optional)
+- Enables fake sensor readings for testing or development
+- Values: `true`, `false`, `yes`, `no`, `1`, `0`
+- Default: `false`
+- When enabled, the app skips the real BME280/BH1745 hardware and uses fixed demo values instead
+
 ## Usage Examples
 
 ### Example 1: Minimal Setup (Docker Run)
