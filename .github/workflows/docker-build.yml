@@ -27,7 +27,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
@@ -35,7 +35,7 @@ jobs:
           tags: |
             ghcr.io/envilleplease/weatherpi-v2:latest
             ghcr.io/envilleplease/weatherpi-v2:latest-${{ github.sha }}
-            ghcr.io/envilleplease/weatherpi-v2:v2.0.2
+            ghcr.io/envilleplease/weatherpi-v2:v2.0.3
           platforms: linux/amd64,linux/arm/v7,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
