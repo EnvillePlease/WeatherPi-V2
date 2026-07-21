@@ -1,7 +1,27 @@
 #!/usr/bin/env bash
 # setup_env.sh — Debian 11/12 targeted virtualenv creator for CNSoft.WeatherPi.Readings
 # Requirements:
-#  - OS must be Debian 11 (bullseye) or Debian 12 (bookworm)
+#  - Officially supported on Debian 12 (bookworm) or 13
+#  - Development mode (-dev) allows installation on any OS (with warning)
+
+# Check for -dev flag
+DEV_MODE=false
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -dev) DEV_MODE=true; shift ;;
+        *) break ;;
+    esac
+done
+
+# OS check (bypassable with -dev flag)
+if ! $DEV_MODE && ! [[ "$(lsb_release -rs)" =~ ^(12|13)$ ]]; then
+    echo "⚠️ Warning: This environment is only officially supported on Debian 12 (bookworm) or 13. Proceeding with development-only installation."
+    read -p "Are you sure you want to continue? (y/n): " confirm
+    if [[ "$confirm" != "y" ]]; then
+        echo "Aborting installation."
+        exit 1
+    fi
+fi
 #  - Python interpreter must be 3.11 or 3.12
 # The script will attempt to install the requested Python versions via apt where
 # available, or build from source as a fallback. It then creates a venv, upgrades
@@ -115,7 +135,9 @@ ensure_python() {
 }
 
 main() {
-  check_debian_version || exit 1
+  if ! $DEV_MODE; then
+    check_debian_version || exit 1
+  fi
 
   PY_BIN=""
   if ! PY_BIN=$(ensure_python); then

@@ -32,7 +32,7 @@ COPY CNSoft.WeatherPi.Readings.V2/readings.ini.sample /app/readings.ini.sample
 # Labels for metadata
 LABEL maintainer="WeatherPi V2" \
       description="WeatherPi Sensor Readings Publisher for MQTT and MySQL" \
-      version="2.0.1"
+      version="2.0.2"
 
 # Health check (basic - checks if process is running)
 # Note: This is a simple check; you may want to enhance it

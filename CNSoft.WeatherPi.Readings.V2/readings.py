@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""weatherpi readings publisher
+"""
+WeatherPI Version 2.0.2 - Sensor Readings Publisher
+Author: Clark Nelson
+Company: CNSoft
+Copyright (c) 2026 CNSoft. All rights reserved.
 
 This module reads sensors (BME280 for temperature/pressure/humidity
 and BH1745 for colour/lux), optionally stores historic readings in a
