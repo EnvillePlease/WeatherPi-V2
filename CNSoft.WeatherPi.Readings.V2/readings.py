@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-WeatherPI Version 2.0.5 - Sensor Readings Publisher
+WeatherPI Version 2.0.6 - Sensor Readings Publisher
 Author: Clark Nelson
 Company: CNSoft
 Copyright (c) 2026 CNSoft. All rights reserved.
