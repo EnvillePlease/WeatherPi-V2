@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-WeatherPI Version 2.0.5 - Sensor Readings Publisher
+WeatherPI Version 2.0.6 - Sensor Readings Publisher
 Author: Clark Nelson
 Company: CNSoft
 Copyright (c) 2026 CNSoft. All rights reserved.
@@ -418,8 +418,33 @@ def publish_sensor(mqtt_clients: List[mqtt_client.Client], conn: Optional[mysql.
         except (OSError, RuntimeError, ValueError):
             logging.exception("Unexpected error in sensor loop; continuing")
 
-        # Wait for the configured interval before repeating
-        time.sleep(refresh_interval)
+        # Wait for the configured interval before repeating, but allow
+        # shutdown to be observed promptly so systemd can stop the service
+        # without waiting for the full refresh interval.
+        wait_for_shutdown(refresh_interval)
+
+def wait_for_shutdown(timeout: Optional[float] = None) -> None:
+    """Wait until shutdown is requested or the timeout expires.
+
+    This uses a short polling interval so SIGTERM is handled promptly even
+    when the main loop would otherwise sleep for a long refresh interval.
+    """
+    deadline = None if timeout is None else time.monotonic() + timeout
+    poll_interval = 0.5
+
+    while not shutdown_requested:
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            sleep_for = min(poll_interval, remaining)
+        else:
+            sleep_for = poll_interval
+
+        try:
+            time.sleep(sleep_for)
+        except InterruptedError:
+            pass
 
 def signal_handler(signum, frame):
     """Handle shutdown signals for graceful termination.
