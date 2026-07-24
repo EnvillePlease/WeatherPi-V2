@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-WeatherPI Version 2.0.6 - Sensor Readings Publisher
+WeatherPI Version 2.0.7 - Sensor Readings Publisher
 Author: Clark Nelson
 Company: CNSoft
 Copyright (c) 2026 CNSoft. All rights reserved.
@@ -18,30 +18,30 @@ Usage: `python readings.py [-c /path/to/readings.ini]`.
 Environment variables take precedence over config file settings.
 """
 
-from smbus2 import SMBus
-from bme280 import BME280
-from bh1745 import BH1745
-import mysql.connector
 import time
 import configparser
 import argparse
 import os
-import paho.mqtt.client as mqtt_client
 import random
 import socket
 import json
-import jsonpickle
 import ssl
 import logging
 import math
 import signal
-import sys
+# import sys
 from typing import Optional, List, Any
+from smbus2 import SMBus   # type: ignore
+from bme280 import BME280  # type: ignore
+from bh1745 import BH1745  # type: ignore
+import mysql.connector
+import paho.mqtt.client as mqtt_client
+import jsonpickle   # type: ignore
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 # Global shutdown flag for graceful termination
-shutdown_requested = False
+SHUTDOWN_REQUESTED = False
 
 # Custom object to hold broker details
 class broker:
@@ -90,13 +90,13 @@ def load_config():
     """
     config = configparser.ConfigParser()
     config_file_exists = os.path.isfile(config_path)
-    
+
     if config_file_exists:
         config.read(config_path)
         logging.info("Config file loaded: %s", config_path)
     else:
         logging.warning("Config file not found: %s. Using environment variables.", config_path)
-    
+
     # Load MQTT broker configuration
     brokers_data = os.environ.get('MQTT_BROKERS')
     if brokers_data:
@@ -113,21 +113,21 @@ def load_config():
         brokers_config = jsonpickle.decode(config.get('broker', 'brokers'))
     else:
         raise ValueError("MQTT_BROKERS env var not set and no config file found")
-    
+
     # Load MQTT topic
     topic_config = os.environ.get('MQTT_TOPIC', config.get('broker', 'topic', fallback='Weatherstation/'))
-    
+
     # Load refresh interval
     refresh_str = os.environ.get('MQTT_REFRESH', config.get('broker', 'refresh', fallback='300'))
     refresh_interval_config = int(refresh_str)
-    
+
     # Load database configuration
     usesql_config = os.environ.get('DB_USE_SQL', config.get('db', 'usesql', fallback='False')).lower() in ('true', '1', 'yes')
     dbserver_config = os.environ.get('DB_SERVER', config.get('db', 'server', fallback=''))
     dbname_config = os.environ.get('DB_NAME', config.get('db', 'database', fallback=''))
     dbusername_config = os.environ.get('DB_USERNAME', config.get('db', 'username', fallback=''))
     dbpassword_config = os.environ.get('DB_PASSWORD', config.get('db', 'password', fallback=''))
-    
+
     # Load calibration offsets
     cal_temp_config = float(os.environ.get('CAL_TEMPERATURE', config.get('calibration', 'temperature', fallback='0.0')))
     cal_pressure_config = float(os.environ.get('CAL_PRESSURE', config.get('calibration', 'pressure', fallback='0.0')))
@@ -141,7 +141,7 @@ def load_config():
         simulate_sensors_config = parse_bool(env_simulate)
     elif config_file_exists and config.has_option('developer', 'simulate_sensors'):
         simulate_sensors_config = parse_bool(config.get('developer', 'simulate_sensors'))
-    
+
     return (
         brokers_config,
         topic_config,
@@ -166,20 +166,31 @@ if SIMULATE_SENSORS:
     logging.warning("SIMULATE_SENSORS enabled; using fake sensor readings")
 
     class FakeBME280:
+        """Fake BME280 sensor for testing."""
         def get_temperature(self) -> float:
+            """Return a simulated temperature in degrees Celsius."""
             return 21.5
 
         def get_pressure(self) -> float:
+            """Return a simulated pressure in hPa."""
             return 1013.25
 
         def get_humidity(self) -> float:
+            """Return a simulated humidity in %."""
             return 45.0
 
     class FakeBH1745:
+        """Fake BH1745 colour/lux sensor for testing."""
+
         def setup(self) -> None:
+            """No-op setup for the fake sensor."""
             return None
 
         def get_rgbc_raw(self):
+            """Return simulated raw RGBC sensor values.
+
+            Returns a 4-tuple: (red, green, blue, clear)
+            """
             return 120, 110, 100, 330
 
     bme280 = FakeBME280()
@@ -224,7 +235,7 @@ def connect_mqtt(brokerep: broker) -> mqtt_client.Client:
             logging.error("Failed to connect to MQTT Broker %s, return code %s", brokerep.brokerfqdn, rc)
 
     client_id_instance: str = client_id + brokerep.brokerfqdn
-    
+
     # Prefer CallbackAPIVersion.VERSION1 if the installed paho-mqtt supports it
     # (preserves older callback API compatibility). Fall back to the modern
     # constructor if it's not available in this environment.
@@ -300,7 +311,7 @@ def publish_sensor(mqtt_clients: List[mqtt_client.Client], conn: Optional[mysql.
         else:
             logging.warning("usesql=True but no DB connection provided at startup")
 
-    while not shutdown_requested:
+    while not SHUTDOWN_REQUESTED:
         try:
             # Obtain readings from the sensors
             temperature_reading = bme280.get_temperature()
@@ -432,7 +443,7 @@ def wait_for_shutdown(timeout: Optional[float] = None) -> None:
     deadline = None if timeout is None else time.monotonic() + timeout
     poll_interval = 0.5
 
-    while not shutdown_requested:
+    while not SHUTDOWN_REQUESTED:
         if deadline is not None:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -453,10 +464,10 @@ def signal_handler(signum, frame):
         signum: Signal number received
         frame: Current stack frame
     """
-    global shutdown_requested
+    global SHUTDOWN_REQUESTED
     signal_name = signal.Signals(signum).name
     logging.info("Received %s signal, initiating graceful shutdown...", signal_name)
-    shutdown_requested = True
+    SHUTDOWN_REQUESTED = True
 
 def run():
     """Application entry point.
@@ -468,9 +479,9 @@ def run():
     # Register signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     logging.info("Starting WeatherPi readings service...")
-    
+
     for brokerep in brokers:
         client = connect_mqtt(brokerep)
         clients.append(client)
