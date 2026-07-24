@@ -58,7 +58,10 @@ class broker:
     brokerusername: str
     brokerpassword: str
 
-    def __init__(self, brokerfqdn: str, brokerport: int, brokerusername: str, brokerpassword: str) -> None:
+    def __init__(self, brokerfqdn: str,
+                 brokerport: int,
+                 brokerusername: str,
+                 brokerpassword: str) -> None:
         self.brokerfqdn = brokerfqdn
         self.brokerport = brokerport
         self.brokerusername = brokerusername
@@ -115,24 +118,54 @@ def load_config():
         raise ValueError("MQTT_BROKERS env var not set and no config file found")
 
     # Load MQTT topic
-    topic_config = os.environ.get('MQTT_TOPIC', config.get('broker', 'topic', fallback='Weatherstation/'))
+    topic_config = os.environ.get('MQTT_TOPIC',
+                                  config.get('broker',
+                                             'topic',
+                                             fallback='Weatherstation/'))
 
     # Load refresh interval
     refresh_str = os.environ.get('MQTT_REFRESH', config.get('broker', 'refresh', fallback='300'))
     refresh_interval_config = int(refresh_str)
 
     # Load database configuration
-    usesql_config = os.environ.get('DB_USE_SQL', config.get('db', 'usesql', fallback='False')).lower() in ('true', '1', 'yes')
-    dbserver_config = os.environ.get('DB_SERVER', config.get('db', 'server', fallback=''))
-    dbname_config = os.environ.get('DB_NAME', config.get('db', 'database', fallback=''))
-    dbusername_config = os.environ.get('DB_USERNAME', config.get('db', 'username', fallback=''))
-    dbpassword_config = os.environ.get('DB_PASSWORD', config.get('db', 'password', fallback=''))
+    usesql_config = os.environ.get('DB_USE_SQL',
+                                   config.get('db',
+                                              'usesql',
+                                              fallback='False')).lower() in ('true', '1', 'yes')
+    dbserver_config = os.environ.get('DB_SERVER',
+                                     config.get('db',
+                                                'server',
+                                                fallback=''))
+    dbname_config = os.environ.get('DB_NAME',
+                                   config.get('db',
+                                              'database',
+                                              fallback=''))
+    dbusername_config = os.environ.get('DB_USERNAME',
+                                       config.get('db',
+                                                  'username',
+                                                  fallback=''))
+    dbpassword_config = os.environ.get('DB_PASSWORD',
+                                       config.get('db',
+                                                  'password',
+                                                  fallback=''))
 
     # Load calibration offsets
-    cal_temp_config = float(os.environ.get('CAL_TEMPERATURE', config.get('calibration', 'temperature', fallback='0.0')))
-    cal_pressure_config = float(os.environ.get('CAL_PRESSURE', config.get('calibration', 'pressure', fallback='0.0')))
-    cal_humidity_config = float(os.environ.get('CAL_HUMIDITY', config.get('calibration', 'humidity', fallback='0.0')))
-    cal_lux_config = float(os.environ.get('CAL_LUX', config.get('calibration', 'lux', fallback='0.0')))
+    cal_temp_config = float(os.environ.get('CAL_TEMPERATURE',
+                                           config.get('calibration',
+                                                      'temperature',
+                                                      fallback='0.0')))
+    cal_pressure_config = float(os.environ.get('CAL_PRESSURE',
+                                               config.get('calibration',
+                                                          'pressure',
+                                                          fallback='0.0')))
+    cal_humidity_config = float(os.environ.get('CAL_HUMIDITY',
+                                               config.get('calibration',
+                                                          'humidity',
+                                                          fallback='0.0')))
+    cal_lux_config = float(os.environ.get('CAL_LUX',
+                                          config.get('calibration',
+                                                     'lux',
+                                                     fallback='0.0')))
 
     # Load simulation mode from environment first, then the config file
     simulate_sensors_config = False
@@ -232,7 +265,8 @@ def connect_mqtt(brokerep: broker) -> mqtt_client.Client:
         if rc == 0:
             logging.info("Connected to MQTT Broker %s", brokerep.brokerfqdn)
         else:
-            logging.error("Failed to connect to MQTT Broker %s, return code %s", brokerep.brokerfqdn, rc)
+            logging.error("Failed to connect to MQTT Broker %s, return code %s",
+                          brokerep.brokerfqdn, rc)
 
     client_id_instance: str = client_id + brokerep.brokerfqdn
 
@@ -290,7 +324,8 @@ def connect_db() -> Optional[Any]:
         logging.error("Database connection failed: %s", e)
         return None
 
-def publish_sensor(mqtt_clients: List[mqtt_client.Client], conn: Optional[mysql.connector.connection.MySQLConnection]) -> None:
+def publish_sensor(mqtt_clients: List[mqtt_client.Client],
+                   conn: Optional[mysql.connector.connection.MySQLConnection]) -> None:
     """Main sensor read loop.
 
     This function runs an infinite loop that reads sensor values,
@@ -371,7 +406,9 @@ def publish_sensor(mqtt_clients: List[mqtt_client.Client], conn: Optional[mysql.
                 # Insert the readings into the SQL database
                 if usesql:
                     # Ensure DB connection is alive, try reconnect if not
-                    if conn is None or not (getattr(conn, 'is_connected', lambda: True)() if conn is not None else False):
+                    if conn is None or not (getattr(conn,
+                                                    'is_connected',
+                                                    lambda: True)() if conn is not None else False):
                         logging.warning("DB connection lost or not present; attempting reconnect")
                         conn = connect_db()
                         if conn is not None:
@@ -415,7 +452,8 @@ def publish_sensor(mqtt_clients: List[mqtt_client.Client], conn: Optional[mysql.
                         if status == 0:
                             logging.debug("Published message to %s", topic)
                         else:
-                            logging.warning("Client failed to send message to topic %s (status=%s)", topic, status)
+                            logging.warning("Client failed to send message to topic %s (status=%s)",
+                                            topic, status)
                     except (OSError, RuntimeError) as e:
                         logging.exception("Client failed to send message to topic %s: %s", topic, e)
                         # Attempt to reconnect this client
@@ -424,7 +462,10 @@ def publish_sensor(mqtt_clients: List[mqtt_client.Client], conn: Optional[mysql.
                         except (OSError, RuntimeError):
                             pass
             else:
-                logging.warning("Bad sensor reading detected: temp=%s hum=%s pres=%s", temperature_r, humidity_r, pressure_r)
+                logging.warning("Bad sensor reading detected: temp=%s hum=%s pres=%s",
+                                temperature_r,
+                                humidity_r,
+                                pressure_r)
 
         except (OSError, RuntimeError, ValueError):
             logging.exception("Unexpected error in sensor loop; continuing")
