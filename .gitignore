@@ -252,3 +252,6 @@ __marimo__/
 
 # Environment variables file
 .env
+
+# Devcontainer
+devcontainer.json
