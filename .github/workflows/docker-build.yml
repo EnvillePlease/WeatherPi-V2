@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -34,8 +36,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/envilleplease/weatherpi-v2:latest
-            ghcr.io/envilleplease/weatherpi-v2:latest-${{ github.sha }}
-            ghcr.io/envilleplease/weatherpi-v2:v2.0.10
+            ghcr.io/envilleplease/weatherpi-v2:dev-${{ github.sha }}
+            ghcr.io/envilleplease/weatherpi-v2:${{ github.ref_name }}
           platforms: linux/amd64,linux/arm/v7,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
